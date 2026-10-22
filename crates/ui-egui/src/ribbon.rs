@@ -1182,6 +1182,10 @@ fn home(app: &mut SlideApp, ui: &mut Ui) {
     let st = fmt_state(app);
     clipboard_group(app, ui);
     slides_group(app, ui);
+    // Next to the slide groups, not at the far end: the ribbon clips what does not fit (#1202).
+    group(ui, |ui| {
+        big(app, ui, Icon::DesignIdeas, "Design\nIdeas", "view.pane", json!({"pane": "designer"}));
+    });
     font_group(app, ui, &st);
     paragraph_group(app, ui, &st);
     group(ui, |ui| {
@@ -1199,9 +1203,6 @@ fn home(app: &mut SlideApp, ui: &mut Ui) {
         });
         // Also under Arrange, but that is disabled until something is selected (#132).
         big(app, ui, Icon::SelectionPane, "Selection\nPane", "view.pane", json!({"pane": "selection"}));
-    });
-    group(ui, |ui| {
-        big(app, ui, Icon::DesignIdeas, "Design\nIdeas", "view.pane", json!({"pane": "designer"}));
     });
 }
 
@@ -1482,6 +1483,10 @@ fn draw(app: &mut SlideApp, ui: &mut Ui) {
 fn design(app: &mut SlideApp, ui: &mut Ui) {
     let themes = deckcraft_model::theme::builtin_themes();
     let cur = app.session.active().and_then(|d| d.doc.masters.first().map(|m| m.theme.name.clone())).unwrap_or_default();
+    // First, so a narrow window does not clip it (#1202).
+    group(ui, |ui| {
+        big(app, ui, Icon::DesignIdeas, "Design\nIdeas", "view.pane", json!({"pane": "designer"}));
+    });
     group(ui, |ui| {
         let sel = themes.iter().position(|th| th.name == cur);
         let names: Vec<String> = themes.iter().map(|t| t.name.clone()).collect();
@@ -1626,9 +1631,6 @@ fn design(app: &mut SlideApp, ui: &mut Ui) {
             }
         });
         big(app, ui, Icon::FormatBackground, "Format\nBackground", "view.pane", json!({"pane": "background"}));
-    });
-    group(ui, |ui| {
-        big(app, ui, Icon::DesignIdeas, "Design\nIdeas", "view.pane", json!({"pane": "designer"}));
     });
 }
 

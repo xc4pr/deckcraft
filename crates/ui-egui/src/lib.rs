@@ -2050,6 +2050,8 @@ mod browsetheme_tests;
 #[cfg(test)]
 mod compare_tests;
 #[cfg(test)]
+mod designideas_tests;
+#[cfg(test)]
 mod eyedropper_tests;
 #[cfg(test)]
 mod huge_deck_tests;
