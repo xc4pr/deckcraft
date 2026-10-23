@@ -111,7 +111,8 @@ fn chart_within(root: &El, mut budget: usize) -> Option<Chart> {
     let ch = root.child("chart")?;
     let pa = ch.child("plotArea")?;
     let mut c = Chart { categories: vec![], series: vec![], title: None, legend: None, gridlines: false, ..Default::default() };
-    c.style = root.child_val("style").and_then(|v| v.parse().ok()).unwrap_or(2);
+    // Office 2010's `c14:style` (taken over its `c:style` fallback) counts from 101 for style 1.
+    c.style = root.child_val("style").and_then(|v| v.parse::<u32>().ok()).map(|v| if v > 100 { v - 100 } else { v }).unwrap_or(2);
     if let Some(t) = ch.child("title") {
         c.title = Some(rich_text(t).unwrap_or_else(|| "Chart Title".into()));
     }
@@ -636,6 +637,19 @@ mod tests {
         assert_eq!(fmt("").as_deref(), Some("#,##0"));
         assert_eq!(fmt(r#"<c:numFmt formatCode="General" sourceLinked="1"/>"#).as_deref(), Some("#,##0"));
         assert_eq!(fmt(r#"<c:numFmt formatCode="0.0" sourceLinked="0"/>"#).as_deref(), Some("0.0"));
+    }
+
+    #[test]
+    fn office_2010_style_number_is_read_as_the_style_it_names() {
+        // PowerPoint writes the style twice: `c14:style` is 100 + the style, `c:style` the fallback.
+        let xml = r#"<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:AlternateContent><mc:Choice Requires="c14" xmlns:c14="http://schemas.microsoft.com/office/drawing/2007/8/2/chart"><c14:style val="102"/></mc:Choice><mc:Fallback><c:style val="2"/></mc:Fallback></mc:AlternateContent><c:chart><c:plotArea><c:barChart><c:barDir val="col"/><c:ser><c:idx val="0"/><c:val><c:numRef><c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser><c:axId val="1"/><c:axId val="2"/></c:barChart><c:catAx><c:axId val="1"/></c:catAx><c:valAx><c:axId val="2"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"#;
+        let mut c = read_chart_xml(xml.as_bytes()).unwrap();
+        assert_eq!(c.style, 2);
+        // An edited chart is written from the model: it keeps style 2, not the clamped 48.
+        c.raw = None;
+        let (out, _) = crate::write::chart::chart_xml(&c);
+        assert!(String::from_utf8_lossy(&out).contains(r#"<c:style val="2"/>"#));
+        assert_eq!(read_chart_xml(&out).unwrap().style, 2);
     }
 
     #[test]
