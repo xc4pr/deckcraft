@@ -298,6 +298,11 @@ pub fn adopt(doc: &mut Presentation, rev: &Presentation, slide: &Slide, replacin
         }
         Ok(())
     }
+    // Fresh ids start above every id the slide keeps, so a renumbered shape never takes the id of
+    // another shape on the slide.
+    let mut max = 0;
+    max_shape_id(&sl.shapes, &mut max);
+    doc.next_id = doc.next_id.max(max);
     rec(doc, &mut sl.shapes, &taken, &mut id_map, &media_map, 0)?;
     for a in &mut sl.animations {
         if let Some(n) = id_map.get(&a.shape) {
@@ -309,9 +314,6 @@ pub fn adopt(doc: &mut Presentation, rev: &Presentation, slide: &Slide, replacin
             *t = *n;
         }
     }
-    let mut max = 0;
-    max_shape_id(&sl.shapes, &mut max);
-    doc.next_id = doc.next_id.max(max);
     // Layout.
     if doc.layout(sl.layout).is_none() {
         let name = rev.layout(slide.layout).map(|(_, l)| l.name.clone());
@@ -451,5 +453,31 @@ mod tests {
         assert!(s.execute("review.compare", &json!({"name": "x.bin", "data": "AAAA"})).is_err());
         assert!(s.execute("review.compare", &json!({})).is_err());
         assert!(s.execute("review.accept", &json!({"index": 999})).is_err());
+    }
+
+    /// Both copies gained shapes after they split: the open deck one on slide 2, the revised deck
+    /// two on slide 1, so the two decks hand out the same new ids. Accepting slide 1 gives its
+    /// clashing shape a fresh id, which must not be the id of the other new shape on that slide.
+    #[test]
+    fn accepting_a_slide_never_duplicates_a_shape_id() {
+        let mut s = Session::with_new();
+        s.execute("slide.new", &json!({"layout": "title", "title": "B"})).unwrap();
+        let n = s.doc().unwrap().doc.slides[0].shapes.len();
+        let orig = s.execute("file.saveBytes", &json!({})).unwrap()["data"].as_str().unwrap().to_string();
+        s.execute("file.openBytes", &json!({"name": "rev.deckcraft", "data": orig})).unwrap();
+        s.execute("slide.go", &json!({"index": 0})).unwrap();
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [100.0, 100.0, 80.0, 80.0]})).unwrap();
+        s.execute("shape.insert", &json!({"preset": "ellipse", "rect": [300.0, 100.0, 80.0, 80.0]})).unwrap();
+        let rev = s.execute("file.saveBytes", &json!({})).unwrap()["data"].as_str().unwrap().to_string();
+        s.close_document(1);
+        s.set_active(0);
+        s.execute("slide.go", &json!({"index": 1})).unwrap();
+        s.execute("shape.insert", &json!({"preset": "rect", "rect": [100.0, 300.0, 80.0, 80.0]})).unwrap();
+        let v = s.execute("review.compare", &json!({"name": "rev.deckcraft", "data": rev})).unwrap();
+        assert_eq!(v["changes"][0]["slide"], 0, "{v}");
+        s.execute("review.accept", &json!({"index": 0})).unwrap();
+        let doc = &s.doc().unwrap().doc;
+        assert_eq!(doc.slides[0].shapes.len(), n + 2, "slide 1 as revised, with both new shapes");
+        assert!(doc.validate().is_empty(), "{:?}", doc.validate());
     }
 }
