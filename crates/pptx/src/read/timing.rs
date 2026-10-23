@@ -167,6 +167,17 @@ pub fn animations(imp: &mut Imp, part: &Part, ctx: &IdCtx, timing: &El, _shapes:
             }
         } else if let Some(s) = c.find("animScale").and_then(|s| s.child("by")) {
             a.amount = s.f64("x").map(|v| v / 100_000.0);
+        } else if a.effect == "transparency" {
+            // Transparency sets the shape's opacity; its amount is how much of that goes.
+            let mut sets = vec![];
+            c.find_all("set", &mut sets);
+            a.amount = sets
+                .into_iter()
+                .find(|s| s.path(&["cBhvr", "attrNameLst", "attrName"]).is_some_and(|n| n.text().trim() == "style.opacity"))
+                .and_then(|s| s.path(&["to", "strVal"]))
+                .and_then(|v| v.f64("val"))
+                .filter(|v| v.is_finite())
+                .map(|v| (1.0 - v).clamp(0.0, 1.0));
         }
         if let Some(clr) = c.find("animClr").and_then(|x| x.child("to")) {
             a.color = dml::color(clr);

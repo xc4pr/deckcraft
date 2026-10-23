@@ -1428,6 +1428,29 @@ fn color_pulse_keeps_its_effect_colour_and_duration() {
 }
 
 #[test]
+fn transparency_keeps_its_amount() {
+    let mut p = defaults::new_presentation(None);
+    let s = shape(&mut p, "Faded", 10.0, 10.0, 200.0, 100.0);
+    let id = s.id;
+    let first = p.slides[0].id;
+    let sl = p.slide_mut(first).expect("slide");
+    sl.shapes.push(s);
+    sl.animations.push(Animation {
+        shape: id,
+        class: AnimClass::Emphasis,
+        effect: "transparency".into(),
+        duration_ms: 500,
+        amount: Some(0.75),
+        ..Default::default()
+    });
+    let q = round(&p);
+    let a = &q.slides[0].animations[0];
+    assert_eq!((a.class, a.effect.as_str()), (AnimClass::Emphasis, "transparency"));
+    assert_eq!(a.amount, Some(0.75), "75 % transparency, not the 50 % default");
+    assert_eq!(round(&q).slides[0].animations[0].amount, Some(0.75), "and again after a second save");
+}
+
+#[test]
 fn notes_master_placeholders_and_colour_map_survive_save() {
     let mut p = defaults::new_presentation(None);
     let mut box1 = shape(&mut p, "Confidential", 100000.0, 200000.0, 3000000.0, 400000.0);
